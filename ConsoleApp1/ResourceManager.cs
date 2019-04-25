@@ -16,8 +16,8 @@ namespace ConsoleApp1 {
         private Timer onTimer;
         private Timer offTimer;
         private List<Downgrade> downgrades = new List<Downgrade>();
-        private List<Downgrade> startOrder = new List<Downgrade>();
-        private List<Downgrade> endOrder = new List<Downgrade>();
+        private Stack<Downgrade> startStack = new Stack<Downgrade>();
+        private Stack<Downgrade> stopStack = new Stack<Downgrade>();
         private string resourceType;
         private Hashtable statusTable = new Hashtable();
 
@@ -38,10 +38,19 @@ namespace ConsoleApp1 {
         }
 
         public void SetDowngrades(List<Downgrade> downs) {
-
+            try {
+                this.onTimer.Stop();
+            } catch (Exception) {
+                Console.WriteLine("On Timer wasn't running");
+            }
+            try {
+                this.offTimer.Stop();
+            } catch (Exception) {
+                Console.WriteLine("Off Timer wasn't running");
+            }
             this.downgrades.Clear();
-            this.startOrder.Clear();
-            this.endOrder.Clear();
+            this.startStack.Clear();
+            this.stopStack.Clear();
 
             foreach (Downgrade d in downs) {
                 //Filter out any old downgrades
@@ -52,20 +61,144 @@ namespace ConsoleApp1 {
                 }
             }
 
+            if (this.downgrades.Count() == 0) {
+                return;
+            }
+
             // Sort them into date order
-            this.downgrades.Sort((x, y) => x.from.CompareTo(y.from));
-            this.startOrder = this.downgrades;
+            this.downgrades.Sort((x, y) => -1 * x.from.CompareTo(y.from));
 
-           foreach (Downgrade d in this.downgrades) {
-                this.endOrder.Add(new Downgrade(d));
+            foreach (Downgrade d in this.downgrades) {
+                this.startStack.Push(d);
             }
-            this.endOrder.Sort((x, y) => x.to.CompareTo(y.to));
+            this.downgrades.Sort((x, y) => -1 * x.to.CompareTo(y.to));
 
-            foreach(Downgrade d in this.startOrder ){
-                Console.WriteLine(d);
+            foreach (Downgrade d in this.downgrades) {
+                this.stopStack.Push(d);
             }
-            foreach (Downgrade d in this.endOrder) {
-                Console.WriteLine(d);
+
+            this.setTimers();
+        }
+
+        private Timer setTimer(String OnOrOff, DateTime triggerTime) {
+
+            Timer timer = new Timer();
+
+            if (this.startStack.Peek().from > DateTime.Now) {
+                onTimer = new Timer();
+                onTimer.AutoReset = false;
+                onTimer.Elapsed += async (source, eventArgs) =>
+                {
+
+
+                    Console.WriteLine("On Timer for " + this.resourceType + " gone off");
+                    await resetDowngrades();
+                    Console.WriteLine("On Timer for " + this.resourceType + " completed");
+                    this.startStack.Pop();
+
+                    if (startStack.Count > 0) {
+                        Console.WriteLine("Scheduling next on timer for " + this.resourceType);
+
+                        //The MAX handles the case when the next downgrade may have been the same time as the previous one or very soon after
+                        onTimer.Interval = Math.Max(1, (this.startStack.Peek().from - DateTime.Now).TotalMilliseconds);
+                        onTimer.Interval = Math.Max(0, (this.startStack.Peek().from - DateTime.Now).TotalMilliseconds);
+                        if (onTimer.Interval > Int32.MaxValue) {
+                            onTimer.Enabled = false;
+                            Console.WriteLine("On Timer not set for " + this.resourceType + ". Too far in advance. " + this.startStack.Peek().from);
+                        } else {
+                            onTimer.Enabled = true;
+                            Console.WriteLine("On Timer set for " + this.resourceType + " at " + this.startStack.Peek().from);
+                        }
+                    }
+
+                };
+                onTimer.Interval = Math.Max(0, (this.startStack.Peek().from - DateTime.Now).TotalMilliseconds);
+                if (onTimer.Interval > Int32.MaxValue) {
+                    onTimer.Enabled = false;
+                    Console.WriteLine("On Timer not set for " + this.resourceType + ". Too far in advance. " + this.startStack.Peek().from);
+                } else {
+                    onTimer.Enabled = true;
+                    Console.WriteLine("On Timer set for " + this.resourceType + " at " + this.startStack.Peek().from);
+                }
+            }
+
+            return timer;
+        }
+        private void setTimers() {
+
+            if (this.startStack.Peek().from > DateTime.Now) {
+                onTimer = new Timer();
+                onTimer.AutoReset = false;
+                onTimer.Elapsed += async (source, eventArgs) =>
+                {
+
+             
+                    Console.WriteLine("On Timer for " + this.resourceType + " gone off");
+                    await resetDowngrades();
+                    Console.WriteLine("On Timer for " + this.resourceType + " completed");
+                    this.startStack.Pop();
+
+                    if (startStack.Count > 0) {
+                        Console.WriteLine("Scheduling next on timer for " + this.resourceType);
+
+                        //The MAX handles the case when the next downgrade may have been the same time as the previous one or very soon after
+                        onTimer.Interval = Math.Max(1, (this.startStack.Peek().from - DateTime.Now).TotalMilliseconds);
+                        onTimer.Interval = Math.Max(0, (this.startStack.Peek().from - DateTime.Now).TotalMilliseconds);
+                        if (onTimer.Interval > Int32.MaxValue) {
+                            onTimer.Enabled = false;
+                            Console.WriteLine("On Timer not set for " + this.resourceType + ". Too far in advance. " + this.startStack.Peek().from);
+                        } else {
+                            onTimer.Enabled = true;
+                            Console.WriteLine("On Timer set for " + this.resourceType + " at " + this.startStack.Peek().from);
+                        }
+                    }
+
+                };
+                onTimer.Interval = Math.Max(0, (this.startStack.Peek().from - DateTime.Now).TotalMilliseconds);
+                if (onTimer.Interval > Int32.MaxValue) {
+                    onTimer.Enabled = false;
+                    Console.WriteLine("On Timer not set for " + this.resourceType + ". Too far in advance. " + this.startStack.Peek().from);
+                } else {
+                    onTimer.Enabled = true;
+                    Console.WriteLine("On Timer set for " + this.resourceType + " at " + this.startStack.Peek().from);
+                }
+            }
+
+            if (this.stopStack.Peek().to > DateTime.Now) {
+                offTimer = new Timer();
+                offTimer.AutoReset = false;
+                offTimer.Elapsed += async (s, e) =>
+                {
+                    Console.WriteLine("Off Timer for " + this.resourceType + " gone off");
+                    await resetDowngrades();
+                    Console.WriteLine("Off Timer for " + this.resourceType + " completed");
+                    this.stopStack.Pop();
+
+                    if (stopStack.Count > 0) {
+                        Console.WriteLine("Scheduling next off timer for " + this.resourceType);
+
+                        offTimer.Interval = Math.Max(1, (this.stopStack.Peek().to - DateTime.Now).TotalMilliseconds);
+                        offTimer.Interval = Math.Max(0, (this.stopStack.Peek().to - DateTime.Now).TotalMilliseconds);
+                        if (offTimer.Interval > Int32.MaxValue) {
+                            offTimer.Enabled = false;
+                            Console.WriteLine("Off Timer not set for " + this.resourceType + ". Too far in advance. " + this.startStack.Peek().to);
+                        } else {
+                            offTimer.Enabled = true;
+                            Console.WriteLine("Off Timer set for " + this.resourceType + " at " + this.startStack.Peek().to);
+                        }
+                    }
+
+                };
+                offTimer.Interval = Math.Max(0, (this.stopStack.Peek().to - DateTime.Now).TotalMilliseconds);
+                if (offTimer.Interval > Int32.MaxValue) {
+                    offTimer.Enabled = false;
+                    Console.WriteLine("Off Timer not set for " + this.resourceType + ". Too far in advance. " + this.startStack.Peek().to);
+                } else {
+                    offTimer.Enabled = true;
+                    Console.WriteLine("Off Timer set for " + this.resourceType + " at " + this.startStack.Peek().to);
+                }
+
+
             }
         }
 
@@ -114,13 +247,13 @@ namespace ConsoleApp1 {
 
             foreach (Downgrade d in this.downgrades) {
 
-                if (!d.IsActive() ) {
+                if (!d.IsActive()) {
                     continue;
                 }
 
                 if (!d.resourceExternalName.Contains(resourceID, StringComparer.OrdinalIgnoreCase)) {
                     continue;
-                }         
+                }
                 return true;
             }
 
@@ -141,12 +274,12 @@ namespace ConsoleApp1 {
 
             await this.GetCurrentStatus();
 
-            foreach (DictionaryEntry s in statusTable ) {
+            foreach (DictionaryEntry s in statusTable) {
 
                 string resource = (string)s.Key;
                 string currentStatus = (string)s.Value;
 
-                
+
                 Boolean bDown = IsResourceDowngradesActive(resource);
 
                 if (currentStatus != "SERVICEABLE" && !bDown) {
@@ -154,13 +287,13 @@ namespace ConsoleApp1 {
                     this.SendStatusUpdateMessage(resource, "SERVICEABLE");
                 }
                 if (currentStatus != "UNSERVICEABLE" && bDown) {
-                    Console.WriteLine(resourceType+ "  Status = " + currentStatus + " Should be UNSERVICEABLE");
+                    Console.WriteLine(resourceType + "  Status = " + currentStatus + " Should be UNSERVICEABLE");
                     this.SendStatusUpdateMessage(resource, "UNSERVICEABLE");
                 }
             }
         }
 
-        public void SendStatusUpdateMessage(String resourceID, String status ) {
+        public void SendStatusUpdateMessage(String resourceID, String status) {
             /*
              * Sends a message to AMS to update the S---_Status custom field
              * for the particular resource type 
@@ -175,10 +308,16 @@ namespace ConsoleApp1 {
                 Formatter = new XmlMessageFormatter()
             };
 
-            string update = string.Format(MQMessTemplate.GetMQMessTemplate(this.resourceType), Program.TOKEN, resourceID, Program.APT_CODE, status);
-            xmlDoc.LoadXml(update);
-            msg.Body = xmlDoc;
-            queue.Send(msg, "Resource Status Update");
+            string update = "Error";
+            try {
+                update = string.Format(MQMessTemplate.GetMQMessTemplate(this.resourceType), Program.TOKEN, resourceID, Program.APT_CODE, status);
+                xmlDoc.LoadXml(update);
+                msg.Body = xmlDoc;
+                queue.Send(msg, "Resource Status Update");
+            } catch (Exception) {
+                Console.WriteLine(update);
+                Console.ReadLine();
+            }
         }
 
         public override String ToString() {

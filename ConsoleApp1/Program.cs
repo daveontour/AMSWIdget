@@ -33,9 +33,7 @@ namespace ConsoleApp1 {
         public static String restAPIGetBase = "/api/v1/DOH/{0}s";
         DateTime to = DateTime.Now.AddDays(10);
         DateTime from = DateTime.Now.AddDays(-20);
-
-
-
+        Timer resetTimer;
 
         enum MessType {
             NonResource,
@@ -54,12 +52,6 @@ namespace ConsoleApp1 {
             CarouselDowngradeCreated,
             CarouselDowngradeUpdated,
             CarouselDowngradeDeleted,
-            //CarouselUpdated,
-            //GateUpdated,
-            //ChuteUpdated,
-            //StandUpdated,
-            //CheckInUpdated
-
         }
 
 
@@ -87,6 +79,17 @@ namespace ConsoleApp1 {
                 Console.WriteLine("Applying downgrade status for resources: " + type);
                 await rm.resetDowngrades();
             }
+
+
+            this.resetTimer = new Timer();
+            this.resetTimer.AutoReset = true;
+            this.resetTimer.Interval = 1000 * 60 * 87;  //87 Minutes
+            this.resetTimer.Elapsed += (source, eventArgs) =>  {
+                Console.WriteLine("Periodic Reset ");
+                this.SetAllResourceManagers();
+            };
+            this.resetTimer.Enabled = true;
+
 
         }
         static void Main(string[] args) {
@@ -130,21 +133,7 @@ namespace ConsoleApp1 {
 
         }
 
-        private void myEvent(object source, ElapsedEventArgs e) {
-            MessageQueue queue = new MessageQueue(".\\Private$\\toams");
-            XmlDocument xmlDoc = new XmlDocument();
-            Message msg = new System.Messaging.Message();
-            String update = String.Format(updateDesk, TOKEN, "UNSERVICEABLE");
-            xmlDoc.LoadXml(update);
-            msg.Body = xmlDoc;
-            msg.Formatter = new System.Messaging.XmlMessageFormatter();
-            Console.Write("Sending to AMS...");
-            Console.WriteLine("Sent");
-            queue.Send(msg, "Resource Status Update");
-        }
-
         private void ClearAllMessages() {
-            Console.WriteLine("Clearing Message Queue.");
             Message[] msgs = m_Queue.GetAllMessages();
             m_Queue.Purge();
             Console.WriteLine("Cleared {0} Message From Queue.", msgs.Length);
@@ -166,7 +155,7 @@ namespace ConsoleApp1 {
 
                     if (res.Item1 == MessType.NonResource) {
                         continue;
-                    }  else {
+                    } else {
                         this.ResetType(res.Item1);
                     }
                 }
@@ -181,7 +170,7 @@ namespace ConsoleApp1 {
             XElement xmlRoot = XDocument.Parse(reader.ReadToEnd()).Root;
             IEnumerable<XElement> elements = xmlRoot.Descendants();
 
-            
+
             //Fliight or Movement Updates
             int fltmvts = (from n in elements
                            where (n.Name == ns + "FlightUpdatedNotification" || n.Name == ns + "MovementUpdatedNotification")
@@ -200,17 +189,16 @@ namespace ConsoleApp1 {
                                         select n;
             if (res.Count() > 0) {
                 IEnumerable<XElement> xNames = from n in elements where n.Name == ns2 + "ExternalName" select n;
-                Console.WriteLine("Resource Updated " + xNames.First().Value);
-                Console.WriteLine(xmlRoot.ToString());
+                Console.WriteLine("Resource Updated " + res.First().Name + "  " + xNames.First().Value);
                 return Tuple.Create(MessType.NonResource, "Flight Or Movement");
             }
 
-            foreach (String type in this.notificationMsgs ) {
+            foreach (String type in this.notificationMsgs) {
 
                 IEnumerable<XElement> nodes = from n in elements where n.Name == ns + type select n;
 
                 if (nodes.Count() > 0) {
-                    Console.WriteLine("Returning "+type);
+                    Console.WriteLine("Returning " + type);
                     return Tuple.Create(MessType.NonResource, "Resource or Downgrade Message");
                 }
             }
