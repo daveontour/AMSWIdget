@@ -63,6 +63,10 @@ namespace AMSResourceStatusWidget {
             }
         }
 
+        public void  SetConsoleLogging(bool log) {
+            Controller.consoleLog = log;
+        }
+
         public async void ConsoleInit() {
 
             this.SetParameters();
@@ -91,6 +95,30 @@ namespace AMSResourceStatusWidget {
 
             this.resetTimer.Elapsed += (source, eventArgs) => {
                 Controller.SOP("Periodic Reset ");
+                this.SetAllResourceManagers();
+            };
+        }
+
+        public async void ServiceInit() {
+
+            this.SetParameters();
+            this.ClearAllMessages();
+            this.StartMQListener();
+            this.SetAllResourceManagers();
+
+            foreach (String type in types) {
+                ResourceManager rm = (ResourceManager)resourceManagersTable[type];
+                 await rm.ResetDowngrades();
+            }
+
+            // Set a time to reset everything periodically
+            this.resetTimer = new Timer {
+                AutoReset = true,
+                Interval = 1000 * 60 * BIG_RESET_TIME,  //87 Minutes
+                Enabled = true
+            };
+
+            this.resetTimer.Elapsed += (source, eventArgs) => {
                 this.SetAllResourceManagers();
             };
         }

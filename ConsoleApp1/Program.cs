@@ -1,11 +1,12 @@
 ﻿using System;
+using AMSResourceStatusWidget;
 
 namespace ConsoleApp1 {
 
     class Program {
         static void Main(string[] args) {
 
-            AMSResourceStatusWidget.Controller p = new AMSResourceStatusWidget.Controller();
+            Controller p = new Controller();
             p.ConsoleInit();
 
             Console.ReadLine();
