@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ConsoleApp1 {
+namespace AMSResourceStatusWidget {
     class MQMessTemplate {
 
         public static String updateDesk = @"<amsx-messages:Envelope xmlns:amsx-messages=""http://www.sita.aero/ams6-xml-api-messages"" xmlns:amsx-datatypes=""http://www.sita.aero/ams6-xml-api-datatypes"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" apiVersion=""2.12"">

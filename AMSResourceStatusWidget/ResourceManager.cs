@@ -9,7 +9,7 @@ using System.Collections;
 using System.Messaging;
 using System.Xml;
 
-namespace ConsoleApp1 {
+namespace AMSResourceStatusWidget {
     class ResourceManager {
 
         private Timer startTimer;

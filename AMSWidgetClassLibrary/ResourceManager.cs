@@ -9,7 +9,8 @@ using System.Collections;
 using System.Messaging;
 using System.Xml;
 
-namespace ConsoleApp1 {
+
+namespace AMSWidgetClassLibrary {
     class ResourceManager {
 
         private Timer startTimer;
@@ -46,12 +47,12 @@ namespace ConsoleApp1 {
             try {
                 this.startTimer.Stop();
             } catch (Exception) {
-               // Controller.SOP("On Timer wasn't running");
+                // Controller.SOP("On Timer wasn't running");
             }
             try {
                 this.stopTimer.Stop();
             } catch (Exception) {
-             //   Controller.SOP("Off Timer wasn't running");
+                //   Controller.SOP("Off Timer wasn't running");
             }
             this.downgrades.Clear();
             this.startStack.Clear();
@@ -97,7 +98,7 @@ namespace ConsoleApp1 {
             try {
                 this.startTimer.Stop();
             } catch (Exception) {
-               // Controller.SOP("Start Timer wasn't running");
+                // Controller.SOP("Start Timer wasn't running");
             }
 
             if (startStack.Count == 0) {
@@ -107,8 +108,8 @@ namespace ConsoleApp1 {
 
             if (this.startStack.Peek().from >= DateTime.Now || validStart) {
                 startTimer = new Timer {
-                    AutoReset = false,  
-                 };
+                    AutoReset = false,
+                };
 
                 validStart = true;
 
@@ -146,7 +147,7 @@ namespace ConsoleApp1 {
             try {
                 this.stopTimer.Stop();
             } catch (Exception) {
-              //  Controller.SOP("Stop Timer wasn't running");
+                //  Controller.SOP("Stop Timer wasn't running");
             }
 
             if (stopStack.Count == 0) {
