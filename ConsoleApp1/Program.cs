@@ -7,7 +7,7 @@ namespace ConsoleApp1 {
         static void Main(string[] args) {
 
             Controller p = new Controller();
-            p.ConsoleInit();
+            p.InitConsole();
 
             Console.ReadLine();
         }

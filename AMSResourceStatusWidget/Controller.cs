@@ -9,6 +9,7 @@ using System.Collections;
 using System.Xml.Linq;
 using System.Timers;
 using Microsoft.Win32;
+using System.Diagnostics;
 
 namespace AMSResourceStatusWidget {
     public class Controller {
@@ -20,6 +21,7 @@ namespace AMSResourceStatusWidget {
         public static string BASE_URI;
         public static string APT_CODE;
         public static int BIG_RESET_TIME;
+        public bool startListenLoop = true;
         private readonly Hashtable ht = new Hashtable();
         private readonly Hashtable resourceManagersTable = new Hashtable();
         private System.Threading.Thread m_ReceiveThread;
@@ -35,6 +37,8 @@ namespace AMSResourceStatusWidget {
         DateTime earliestDowngrade;
         DateTime latestDowngrade;
         Timer resetTimer;
+        private static EventLog eventLog1;
+        private static bool logEvents = false;
 
         enum MessType {
             NonResource,
@@ -67,26 +71,24 @@ namespace AMSResourceStatusWidget {
             Controller.consoleLog = log;
         }
 
-        public async void ConsoleInit() {
+        public void SetEventLogger(EventLog eventLogger) {
+            eventLog1 = eventLogger;
+            logEvents = true;
+        }
 
+        public void InitCommon() {
+
+            SOP("Setting Parameters");
             this.SetParameters();
+            SOP("Clearing Messages");
             this.ClearAllMessages();
+            SOP("Starting Listener");
             this.StartMQListener();
+            SOP("Setting resource Managers");
             this.SetAllResourceManagers();
 
-            foreach (String type in types) {
-                Controller.SOP(resourceManagersTable[type].ToString());
-            }
-
-            foreach (String type in types) {
-                ResourceManager rm = (ResourceManager)resourceManagersTable[type];
-                Controller.SOP("Applying downgrade status for resources: " + type);
-                await rm.ResetDowngrades();
-            }
-
-
-
             // Set a time to reset everything periodically
+            SOP("Setting Big Reset Timer");
             this.resetTimer = new Timer {
                 AutoReset = true,
                 Interval = 1000 * 60 * BIG_RESET_TIME,  //87 Minutes
@@ -99,28 +101,44 @@ namespace AMSResourceStatusWidget {
             };
         }
 
-        public async void ServiceInit() {
+        public async void InitConsole() {
 
-            this.SetParameters();
-            this.ClearAllMessages();
-            this.StartMQListener();
-            this.SetAllResourceManagers();
+            this.InitCommon();
+
+            foreach (String type in types) {
+                Controller.SOP(resourceManagersTable[type].ToString());
+            }
 
             foreach (String type in types) {
                 ResourceManager rm = (ResourceManager)resourceManagersTable[type];
+                Controller.SOP("Applying downgrade status for resources: " + type);
+                await rm.ResetDowngrades();
+            }
+        }
+
+        public async void InitService() {
+            SOP("Start of INIT");
+            this.InitCommon();
+            SOP("End of INIT");
+
+            foreach (String type in types) {
+                ResourceManager rm = (ResourceManager)resourceManagersTable[type];
+                SOP("Resetting Downgrasdes for " + type);
                  await rm.ResetDowngrades();
             }
+            SOP("End of InitService");
+        }
 
-            // Set a time to reset everything periodically
-            this.resetTimer = new Timer {
-                AutoReset = true,
-                Interval = 1000 * 60 * BIG_RESET_TIME,  //87 Minutes
-                Enabled = true
-            };
+        public void Suspend() {
+            SOP("Suspending");
+            this.StopMQListener();
+            SOP("Listener stopped");
+            foreach (String type in types) {
+                ResourceManager rm = (ResourceManager)resourceManagersTable[type];
+                rm.Suspend();
+                SOP("Stopped RM " + type);
+            }
 
-            this.resetTimer.Elapsed += (source, eventArgs) => {
-                this.SetAllResourceManagers();
-            };
         }
 
 
@@ -149,13 +167,13 @@ namespace AMSResourceStatusWidget {
             Registry.SetValue(keyName, "ResetTime", BIG_RESET_TIME, RegistryValueKind.DWord);
             
 
-            int earliestDowngradeOffSet = (int)Registry.GetValue(keyName, "EarliestDowngradeOffset", -20);
-            Registry.SetValue(keyName, "EarliestDowngradeOffset", earliestDowngradeOffSet, RegistryValueKind.DWord);
+            int earliestDowngradeOffSet = Int32.Parse((string)Registry.GetValue(keyName, "EarliestDowngradeOffset", "-20"));
+            Registry.SetValue(keyName, "EarliestDowngradeOffset", earliestDowngradeOffSet, RegistryValueKind.String);
             earliestDowngrade = DateTime.Now.AddDays(earliestDowngradeOffSet);
             SOP(earliestDowngrade.ToString());
 
-            int latestDowngradeOffSet = (int)Registry.GetValue(keyName, "LatestDowngradeOffset", 20);
-            Registry.SetValue(keyName, "LatestDowngradeOffset", latestDowngradeOffSet, RegistryValueKind.DWord);
+            int latestDowngradeOffSet = Int32.Parse((string)Registry.GetValue(keyName, "LatestDowngradeOffset", "20"));
+            Registry.SetValue(keyName, "LatestDowngradeOffset", latestDowngradeOffSet, RegistryValueKind.String);
             latestDowngrade = DateTime.Now.AddDays(latestDowngradeOffSet);
             SOP(latestDowngrade.ToString());
 
@@ -185,12 +203,6 @@ namespace AMSResourceStatusWidget {
             ht.Add(MessType.CheckInDowngradeCreated, "CheckInDowngradeCreatedNotification");
             ht.Add(MessType.CheckInDowngradeUpdated, "CheckInDowngradeUpdatedNotification");
             ht.Add(MessType.CheckInDowngradeDeleted, "CheckInDowngradeDeletedNotification");
-            //ht.Add(MessType.CheckInUpdated, "CheckInUpdatedNotification");
-            //ht.Add(MessType.GateUpdated, "GateUpdatedNotification");
-            //ht.Add(MessType.ChuteUpdated, "ChuteUpdatedNotification");
-            //ht.Add(MessType.StandUpdated, "StandUpdatedNotification");
-            //ht.Add(MessType.CarouselUpdated, "CarouselUpdatedNotification");
-
         }
 
         private void ClearAllMessages() {
@@ -205,16 +217,27 @@ namespace AMSResourceStatusWidget {
             Controller.SOP("Cleared Message From Queue.");
         }
         public void StartMQListener() {
+            this.startListenLoop = true;
             m_ReceiveThread = new System.Threading.Thread(this.ListenToQueue);
             m_ReceiveThread.IsBackground = true;
             m_ReceiveThread.Name = "Listen For MSMQ Messages Thread";
             m_ReceiveThread.Start();
         }
 
+        public void StopMQListener() {
+            SOP("Stopping MQ Listener");
+            try {
+                this.startListenLoop = false;
+                m_ReceiveThread.Abort();
+            } catch (Exception ex) {
+                SOP(ex.Message);
+            }
+        }
+
         private void ListenToQueue() {
             Controller.SOP("Listening for Message Notifications");
 
-            while (true) {
+            while (startListenLoop) {
                 using (Message msg = m_Queue.Receive()) {
 
                     Tuple<MessType, String> res = GetMessageType(msg);
@@ -323,11 +346,15 @@ namespace AMSResourceStatusWidget {
         }
 
         public void SetAllResourceManagers() {
-
+            SOP("Update Checkin Downgrades");
             UpdateCheckInDownGrades();
+            SOP("Update Gate Downgrades");
             UpdateGateDownGrades();
+            SOP("Update Chute Downgrades");
             UpdateChuteDownGrades();
+            SOP("Update Stand Downgrades");
             UpdateStandDownGrades();
+            SOP("Update Carousel Downgrades");
             UpdateCarouselDownGrades();
 
         }
@@ -361,11 +388,19 @@ namespace AMSResourceStatusWidget {
             rm.SetDowngrades(this.CreateDowngrades(x, "GateDowngrade"), reset);
         }
         public void UpdateCheckInDownGrades(bool reset = false) {
-            AMSIntegrationServiceClient client = new AMSIntegrationServiceClient();
-            XmlElement x = client.GetCheckInDowngrades(TOKEN, earliestDowngrade, latestDowngrade, APT_CODE, WorkBridge.Modules.AMS.AMSIntegrationWebAPI.Srv.AirportIdentifierType.IATACode);
-            client.Close();
-            ResourceManager rm = (ResourceManager)resourceManagersTable["CheckIn"];
-            rm.SetDowngrades(this.CreateDowngrades(x, "CheckInDowngrade"), reset);
+            try {
+                SOP("Getting client");
+                AMSIntegrationServiceClient client = new AMSIntegrationServiceClient();
+                SOP("Client Get");
+                XmlElement x = client.GetCheckInDowngrades(TOKEN, earliestDowngrade, latestDowngrade, APT_CODE, WorkBridge.Modules.AMS.AMSIntegrationWebAPI.Srv.AirportIdentifierType.IATACode);
+                SOP("Client Close");
+                client.Close();
+                ResourceManager rm = (ResourceManager)resourceManagersTable["CheckIn"];
+                SOP("RM Set Downgrade");
+                rm.SetDowngrades(this.CreateDowngrades(x, "CheckInDowngrade"), reset);
+            } catch (Exception ex) {
+                SOP(ex.Message);
+            }
         }
 
         public void UpdateChuteDownGrades(bool reset = false) {
@@ -395,6 +430,24 @@ namespace AMSResourceStatusWidget {
         public static void SOP(string str) {
             if (consoleLog) {
                 Console.WriteLine(str);
+            }
+
+            if (logEvents) {
+                eventLog1.WriteEntry(str);
+
+                string path = @"c:\Users\dave_\Desktop\Service.log";
+                if (!File.Exists(path)) {
+                    // Create a file to write to.
+                    using (StreamWriter sw = File.CreateText(path)) {
+                        sw.WriteLine("Start of Log ");
+                    }
+                }
+
+
+                using (StreamWriter sw = File.AppendText(path)) {
+                    sw.WriteLine(str);
+                }
+
             }
         }
     }

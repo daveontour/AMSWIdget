@@ -28,7 +28,7 @@
             // 
             // ResourceStatusService
             // 
-            this.ServiceName = "AMSResourceStatusWidget";
+            this.ServiceName = "AMS Proof Of Concept Resource Status Widget";
             ((System.ComponentModel.ISupportInitialize)(this.eventLog1)).EndInit();
 
         }

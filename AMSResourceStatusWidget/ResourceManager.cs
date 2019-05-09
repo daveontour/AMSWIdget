@@ -31,6 +31,25 @@ namespace AMSResourceStatusWidget {
             this.SetDowngrades(downs);
         }
 
+        public void Suspend() {
+
+            this.validStart = false;
+            this.validStop = false;
+
+            try {
+                this.startTimer.Stop();
+            } catch (Exception) {
+                // Controller.SOP("On Timer wasn't running");
+            }
+            try {
+                this.stopTimer.Stop();
+            } catch (Exception) {
+                //   Controller.SOP("Off Timer wasn't running");
+            }
+            this.downgrades.Clear();
+            this.startStack.Clear();
+            this.stopStack.Clear();
+        }
         public async Task<String> GetCurrentResourceStatus(String id, Boolean refresh) {
             if (refresh) {
                 await this.GetCurrentStatus();
