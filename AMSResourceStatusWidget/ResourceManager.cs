@@ -269,28 +269,6 @@ namespace AMSResourceStatusWidget {
             }
         }
 
-        public bool IsResourceDowngradesActive(string resourceID) {
-
-            /*
-             * DEPRECATED: No longer used for getting is a resource is affected by a downgrade
-             */
-
-            foreach (Downgrade d in this.downgrades) {
-
-                if (!d.IsActive()) {
-                    continue;
-                }
-
-                if (!d.resourceExternalName.Contains(resourceID, StringComparer.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                return true;
-            }
-
-            return false;
-        }
-
-
         public async Task ResetDowngrades() {
             /*
              * Call this function at the start or reset of the service or downgrades
@@ -343,9 +321,9 @@ namespace AMSResourceStatusWidget {
                 xmlDoc.LoadXml(update);
                 msg.Body = xmlDoc;
                 Controller.send_Queue.Send(msg, "Resource Status Update");
-            } catch (Exception) {
-                Controller.SOP(update);
-                Console.ReadLine();
+            } catch (Exception ex) {
+                Controller.SOP(update,true);
+                Controller.SOP(ex.Message, true);
             }
         }
 

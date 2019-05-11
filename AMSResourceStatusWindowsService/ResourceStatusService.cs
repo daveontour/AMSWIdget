@@ -1,6 +1,8 @@
 ﻿using System.ServiceProcess;
 using AMSResourceStatusWidget;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
+
 
 namespace AMSResourceStatusWindowsService {
 
@@ -30,57 +32,51 @@ namespace AMSResourceStatusWindowsService {
         public ResourceStatusService() {
 
             CanStop = true;
-            
-
+ 
             InitializeComponent();
             eventLog1 = new System.Diagnostics.EventLog();
-            if (!System.Diagnostics.EventLog.SourceExists("AMSResourceStatus")) {
-                System.Diagnostics.EventLog.CreateEventSource(
-                    "AMSResourceStatus", "AMSResourceStatusLog");
+            if (!EventLog.SourceExists("AMSResourceStatus")) {
+                EventLog.CreateEventSource("AMSResourceStatus", "AMSResourceStatusLog");
             }
             eventLog1.Source = "AMSResourceStatus";
             eventLog1.Log = "AMSResourceStatusLog";
         }
 
         protected override void OnStart(string[] args) {
-            Controller.SOP("OnStart Start");
-            eventLog1.WriteEntry("Starting AMSResourceStatusWidget");
-            // Update the service state to Start Pending.
-            ServiceStatus serviceStatus = new ServiceStatus();
-            serviceStatus.dwCurrentState = ServiceState.SERVICE_START_PENDING;
-            serviceStatus.dwWaitHint = 100000;
+            eventLog1.WriteEntry("Starting AMS Resource Status Widget", EventLogEntryType.Information);
+
+            ServiceStatus serviceStatus = new ServiceStatus {
+                dwCurrentState = ServiceState.SERVICE_START_PENDING,
+                dwWaitHint = 100000
+            };
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
-            controller = new Controller();
-            controller.SetConsoleLogging(false);
-            controller.SetEventLogger(eventLog1);
+            controller = new Controller(eventLog1);
             controller.InitService();
-            Controller.SOP("OnStart Controller Init Complete");
 
             // Update the service state to Running.
             serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
-            Controller.SOP("OnStart Stop");
+            eventLog1.WriteEntry("Started AMS Resource Status Widget", EventLogEntryType.Information);
 
         }
 
         protected override void OnStop() {
-            eventLog1.WriteEntry("Stopping AMSResourceStatusWidget");
-            Controller.SOP("OnStop Start");
+            eventLog1.WriteEntry("Stopping AMS Resource Status Widget", EventLogEntryType.Information);
 
-            ServiceStatus serviceStatus = new ServiceStatus();
-            serviceStatus.dwCurrentState = ServiceState.SERVICE_STOP_PENDING;
-            serviceStatus.dwWaitHint = 100000;
+            ServiceStatus serviceStatus = new ServiceStatus {
+                dwCurrentState = ServiceState.SERVICE_STOP_PENDING,
+                dwWaitHint = 100000
+            };
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
             
-            Controller.SOP("OnStop Controller Suspend Start");
             controller.Suspend();
-            Controller.SOP("OnStop Controller Suspend Start");
 
             serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
-            Controller.SOP("OnStop Stop");
+
+            eventLog1.WriteEntry("Stopped AMS Resource Status Widget", EventLogEntryType.Information);
 
         }
 

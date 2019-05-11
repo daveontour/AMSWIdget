@@ -75,6 +75,7 @@ namespace MonitorApplication {
             ht.Add(MessType.CheckInDowngradeUpdated, "CheckInDowngradeUpdatedNotification");
             ht.Add(MessType.CheckInDowngradeDeleted, "CheckInDowngradeDeletedNotification");
 
+            this.ClearAllMessages();
             this.StartMQListener();
 
             Console.ReadLine();
@@ -99,25 +100,16 @@ namespace MonitorApplication {
             m_ReceiveThread.Start();
         }
 
-        public void StopMQListener() {
-            this.startListenLoop = false;
-            m_ReceiveThread.Name = "Shutting down MSMQ Messages Thread";
-            m_ReceiveThread.Abort();
-        }
-
         private void ListenToQueue() {
             SOP("Listening for Message Notifications");
 
             while (startListenLoop) {
                 using (Message msg = m_Queue.Receive()) {
-
-                    Tuple<MessType, String> res = GetMessageType(msg);
-
-
+                    GetMessageType(msg);
                 }
             }
         }
-        private Tuple<MessType, String> GetMessageType(Message msg) {
+        private void GetMessageType(Message msg) {
             StreamReader reader = new StreamReader(msg.BodyStream);
 
             XNamespace ns = "http://www.sita.aero/ams6-xml-api-messages";
@@ -126,15 +118,15 @@ namespace MonitorApplication {
             IEnumerable<XElement> elements = xmlRoot.Descendants();
 
 
-            //Fliight or Movement Updates
-            int fltmvts = (from n in elements
-                           where (n.Name == ns + "FlightUpdatedNotification" || n.Name == ns + "MovementUpdatedNotification")
-                           select n).Count();
+            ////Fliight or Movement Updates
+            //int fltmvts = (from n in elements
+            //               where (n.Name == ns + "FlightUpdatedNotification" || n.Name == ns + "MovementUpdatedNotification")
+            //               select n).Count();
 
-            if (fltmvts > 0) {
-                SOP("Flight or Movement Update: " + DateTime.Now);
-                return Tuple.Create(MessType.NonResource, "Flight Or Movement");
-            }
+            //if (fltmvts > 0) {
+            //    SOP("Flight or Movement Update: " + DateTime.Now);
+            //    return Tuple.Create(MessType.NonResource, "Flight Or Movement");
+            //}
 
             //Resource Updates
             IEnumerable<XElement> res = from n in elements
@@ -146,7 +138,7 @@ namespace MonitorApplication {
             if (res.Count() > 0) {
                 IEnumerable<XElement> xNames = from n in elements where n.Name == ns2 + "ExternalName" select n;
                 SOP("Resource Updated " + res.First().Name + "  " + xNames.First().Value);
-                return Tuple.Create(MessType.NonResource, "Flight Or Movement");
+                return;
             }
 
             foreach (String type in this.notificationMsgs) {
@@ -155,7 +147,7 @@ namespace MonitorApplication {
 
                 if (nodes.Count() > 0) {
                     SOP("Resource Update Message (" + type + ") " + DateTime.Now);
-                    return Tuple.Create(MessType.NonResource, "Resource Update Message ("+type+") "+ DateTime.Now);
+                    return;
                 }
             }
 
@@ -166,13 +158,13 @@ namespace MonitorApplication {
 
                 if (nodes.Count() > 0) {
                     SOP("Resource Downgrade Message (" + type + ") " + DateTime.Now);
-                    return Tuple.Create(type, "Resource or Downgrade Message");
+                    return;
                 }
             }
 
             //Default
-            SOP("Returning Non Resource");
-            return Tuple.Create(MessType.NonResource, "NonResource");
+            //           SOP("Returning Non Resource");
+            return;
         }
 
         public static void SOP(string str) {
