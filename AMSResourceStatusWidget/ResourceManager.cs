@@ -8,6 +8,7 @@ using System.Xml.Linq;
 using System.Collections;
 using System.Messaging;
 using System.Xml;
+using WorkBridge.Modules.AMS.AMSIntegrationWebAPI.Srv;
 
 namespace AMSResourceStatusWidget {
     class ResourceManager {
@@ -65,12 +66,12 @@ namespace AMSResourceStatusWidget {
             try {
                 this.startTimer.Stop();
             } catch (Exception) {
-               // Controller.SOP("On Timer wasn't running");
+                // Controller.SOP("On Timer wasn't running");
             }
             try {
                 this.stopTimer.Stop();
             } catch (Exception) {
-             //   Controller.SOP("Off Timer wasn't running");
+                //   Controller.SOP("Off Timer wasn't running");
             }
             this.downgrades.Clear();
             this.startStack.Clear();
@@ -116,7 +117,7 @@ namespace AMSResourceStatusWidget {
             try {
                 this.startTimer.Stop();
             } catch (Exception) {
-               // Controller.SOP("Start Timer wasn't running");
+                // Controller.SOP("Start Timer wasn't running");
             }
 
             if (startStack.Count == 0) {
@@ -126,8 +127,8 @@ namespace AMSResourceStatusWidget {
 
             if (this.startStack.Peek().from >= DateTime.Now || validStart) {
                 startTimer = new Timer {
-                    AutoReset = false,  
-                 };
+                    AutoReset = false,
+                };
 
                 validStart = true;
 
@@ -145,7 +146,8 @@ namespace AMSResourceStatusWidget {
                     Controller.SOP("Start Timer set for " + this.resourceType + " at " + this.startStack.Peek().from);
                 }
 
-                startTimer.Elapsed += async (source, eventArgs) => {
+                startTimer.Elapsed += async (source, eventArgs) =>
+                {
                     Controller.SOP("Start Timer for " + this.resourceType + " gone off");
                     await ResetDowngrades();
                     Controller.SOP("Start Timer for " + this.resourceType + " completed");
@@ -165,7 +167,7 @@ namespace AMSResourceStatusWidget {
             try {
                 this.stopTimer.Stop();
             } catch (Exception) {
-              //  Controller.SOP("Stop Timer wasn't running");
+                //  Controller.SOP("Stop Timer wasn't running");
             }
 
             if (stopStack.Count == 0) {
@@ -193,7 +195,8 @@ namespace AMSResourceStatusWidget {
                     Controller.SOP("Stop Timer set for " + this.resourceType + " at " + this.stopStack.Peek().to);
                 }
 
-                stopTimer.Elapsed += async (source, eventArgs) => {
+                stopTimer.Elapsed += async (source, eventArgs) =>
+                {
                     Controller.SOP("Stop Timer for " + this.resourceType + " gone off");
                     await ResetDowngrades();
                     Controller.SOP("Stop Timer for " + this.resourceType + " completed");
@@ -241,10 +244,10 @@ namespace AMSResourceStatusWidget {
 
             using (var client = new HttpClient()) {
 
-                client.BaseAddress = new Uri(Controller.BASE_URI);
-                client.DefaultRequestHeaders.Add("Authorization", Controller.TOKEN);
+                client.BaseAddress = new Uri(Parameters.BASE_URI);
+                client.DefaultRequestHeaders.Add("Authorization", Parameters.TOKEN);
 
-                var result = await client.GetAsync(String.Format(Controller.restAPIGetBase, resourceType));
+                var result = await client.GetAsync(String.Format(Parameters.RESTAPIBASE, resourceType));
 
                 XElement xmlRoot = XDocument.Parse(await result.Content.ReadAsStringAsync()).Root;
 
@@ -290,11 +293,9 @@ namespace AMSResourceStatusWidget {
                 bool bDown = unavailResources.Contains(resource, StringComparer.OrdinalIgnoreCase);
 
                 if (currentStatus != "SERVICEABLE" && !bDown) {
-                    Controller.SOP(resourceType + "  Status = " + currentStatus + " Should be SERVICEABLE");
                     this.SendStatusUpdateMessage(resource, "SERVICEABLE");
                 }
                 if (currentStatus != "UNSERVICEABLE" && bDown) {
-                    Controller.SOP(resourceType + "  Status = " + currentStatus + " Should be UNSERVICEABLE");
                     this.SendStatusUpdateMessage(resource, "UNSERVICEABLE");
                 }
             }
@@ -308,7 +309,6 @@ namespace AMSResourceStatusWidget {
              * Uses the MQ Request Queue to send the message (would prefer to use the RestAPI)
              */
 
-            MessageQueue queue = new MessageQueue(".\\Private$\\toams");
             XmlDocument xmlDoc = new XmlDocument();
 
             Message msg = new Message {
@@ -317,14 +317,68 @@ namespace AMSResourceStatusWidget {
 
             string update = "Error";
             try {
-                update = string.Format(MQMessTemplate.GetMQMessTemplate(this.resourceType), Controller.TOKEN, resourceID, Controller.APT_CODE, status);
+                update = string.Format(MQMessTemplate.GetMQMessTemplate(this.resourceType), Parameters.TOKEN, resourceID, Parameters.APT_CODE, status);
                 xmlDoc.LoadXml(update);
+                MessageQueue sendQueue = new MessageQueue(Parameters.SENDQ);
                 msg.Body = xmlDoc;
-                Controller.send_Queue.Send(msg, "Resource Status Update");
-            } catch (Exception ex) {
-                Controller.SOP(update,true);
+                sendQueue.Send(msg, "Resource Status Update");
+                Controller.SOP(String.Format("{0} Update Message Sent, Resource ID: {1}, New Status: {2}", this.resourceType, resourceID, status));
+             } catch (Exception ex) {
+                Controller.SOP(update, true);
                 Controller.SOP(ex.Message, true);
             }
+        }
+
+        public void UpdateDowngrades(bool reset=false) {
+
+
+            try {
+
+                AMSIntegrationServiceClient client = new AMSIntegrationServiceClient();
+                XmlElement x;
+                switch (this.resourceType) {
+                    case "CheckIn":
+                        x = client.GetCheckInDowngrades(Parameters.TOKEN, Parameters.EARLIEST_DOWNGRADE, Parameters.LATEST_DOWNGRADE, Parameters.APT_CODE, AirportIdentifierType.IATACode);
+                        SetDowngrades(this.CreateDowngrades(x, "CheckInDowngrade"), reset);
+                        break;
+                    case "Gate":
+                        x = client.GetGateDowngrades(Parameters.TOKEN, Parameters.EARLIEST_DOWNGRADE, Parameters.LATEST_DOWNGRADE, Parameters.APT_CODE, AirportIdentifierType.IATACode);
+                        SetDowngrades(this.CreateDowngrades(x, "GateDowngrade"), reset);
+                        break;
+                    case "Chute":
+                        x = client.GetChuteDowngrades(Parameters.TOKEN, Parameters.EARLIEST_DOWNGRADE, Parameters.LATEST_DOWNGRADE, Parameters.APT_CODE, AirportIdentifierType.IATACode);
+                        SetDowngrades(this.CreateDowngrades(x, "ChuteDowngrade"), reset);
+                        break;
+                    case "Stand":
+                        x = client.GetStandDowngrades(Parameters.TOKEN, Parameters.EARLIEST_DOWNGRADE, Parameters.LATEST_DOWNGRADE, Parameters.APT_CODE, AirportIdentifierType.IATACode);
+                        SetDowngrades(this.CreateDowngrades(x, "StandDowngrade"), reset);
+                        break;
+                    case "Carousel":
+                        x = client.GetCarouselDowngrades(Parameters.TOKEN, Parameters.EARLIEST_DOWNGRADE, Parameters.LATEST_DOWNGRADE, Parameters.APT_CODE, AirportIdentifierType.IATACode);
+                        SetDowngrades(this.CreateDowngrades(x, "CarouselDowngrade"), reset);
+                        break;
+                }
+                client.Close();
+
+            } catch (Exception ex) {
+                Controller.SOP(ex.Message, true);
+            }
+        }
+
+        private List<Downgrade> CreateDowngrades(System.Xml.XmlElement x, String type) {
+            List<Downgrade> dgs = new List<Downgrade>();
+
+            XNamespace ns = "http://www.sita.aero/ams6-xml-api-datatypes";
+            XElement el = XDocument.Parse(x.InnerXml).Root;
+
+            IEnumerable<XElement> downs = from n in el.Descendants()
+                                          where (n.Name == ns + type)
+                                          select n;
+
+            foreach (XElement xl in downs) {
+                dgs.Add(new Downgrade(xl, ns, type));
+            }
+            return dgs;
         }
 
         public override String ToString() {
@@ -335,8 +389,18 @@ namespace AMSResourceStatusWidget {
                     active = active + 1;
                 }
             }
+         
+            string s =  String.Format("Resource: {0}  Total Downgrades: {1},  Active Downgrades: {2}", resourceType, total, active);
 
-            return String.Format("Resource: {0}  Total Downgrades: {1},  Active Downgrades: {2}", resourceType, total, active);
+            foreach (Downgrade itm in startStack) {
+                string ss = String.Format("{2} Downgrade ID: {0}, Start Time: {1}", itm.UniqueID, itm.from, this.resourceType);
+                s = s + "\n" + ss;
+            }
+            foreach (Downgrade itm in stopStack) {
+                string ss = String.Format("{2} Downgrade ID: {0}, Stop Time: {1}", itm.UniqueID, itm.to, this.resourceType);
+                s = s + "\n" + ss;
+            }
+            return s;
         }
     }
 }

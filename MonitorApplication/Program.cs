@@ -23,7 +23,7 @@ namespace MonitorApplication {
         private readonly Hashtable ht = new Hashtable();
 
         private readonly string[] notificationMsgs = {
-           "CheckiInUpdatedNotification",
+           "CheckInUpdatedNotification",
            "GateUpdatedNotification",
            "ChuteUpdatedNotification",
            "StandUpdatedNotification",
@@ -161,10 +161,6 @@ namespace MonitorApplication {
                     return;
                 }
             }
-
-            //Default
-            //           SOP("Returning Non Resource");
-            return;
         }
 
         public static void SOP(string str) {

@@ -43,24 +43,7 @@ namespace AMSResourceStatusWindowsService {
             this.serviceInstaller1.StartType = System.ServiceProcess.ServiceStartMode.Automatic;
 
 
-            // Set the defualt registry keys
-            const string userRoot = "HKEY_LOCAL_MACHINE\\SOFTWARE\\SITA";
-            const string subkey = "AMSResourceStatusWidget";
-            const string keyName = userRoot + "\\" + subkey;
-
-
-            Registry.SetValue(keyName, "IATAAirportCode", "DOH", RegistryValueKind.String);
-            Registry.SetValue(keyName, "Token", "b406564f-44aa-4e51-a80a-aa9ed9a04ec6", RegistryValueKind.String);
-            Registry.SetValue(keyName, "LogFilePath", "C:\\", RegistryValueKind.String);
-            Registry.SetValue(keyName, "BaseURI", "http://localhost/", RegistryValueKind.String);
-            Registry.SetValue(keyName, "ResetTime", "107", RegistryValueKind.String);
-            Registry.SetValue(keyName, "ConsoleLog", 0, RegistryValueKind.DWord);
-            Registry.SetValue(keyName, "EarliestDowngradeOffset", "-20", RegistryValueKind.String);
-            Registry.SetValue(keyName, "LatestDowngradeOffset", "20", RegistryValueKind.String);
-            Registry.SetValue(keyName, "NotificationQueue", ".\\Private$\\fromams", RegistryValueKind.String);
-            Registry.SetValue(keyName, "RequestQueue", ".\\Private$\\toams", RegistryValueKind.String);
- 
-
+  
             // 
             // ProjectInstaller
             // 
