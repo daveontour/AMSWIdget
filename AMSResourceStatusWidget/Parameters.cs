@@ -19,9 +19,11 @@ namespace AMSResourceStatusWidget {
         public static DateTime EARLIEST_DOWNGRADE;
         public static DateTime LATEST_DOWNGRADE;
         public static bool LOGEVENTS;
+        public static bool EVENT_LOG_ERROR_ONLY;
 
         public static int cl;
         public static int le;
+        public static int eo;
 
         public Parameters(EventLog eventLog1) {
 
@@ -44,6 +46,7 @@ namespace AMSResourceStatusWidget {
 
                 cl = Int32.Parse((string)ConfigurationManager.AppSettings["ConsoleLog"]);
                 le = Int32.Parse((string)ConfigurationManager.AppSettings["EventLog"]);
+                eo = Int32.Parse((string)ConfigurationManager.AppSettings["EventLogErrorOnly"]);
 
                 if (cl > 0) {
                     CONSOLE_LOG = true;
@@ -57,13 +60,19 @@ namespace AMSResourceStatusWidget {
                     LOGEVENTS = false;
                 }
 
+                if (eo > 0) {
+                    EVENT_LOG_ERROR_ONLY = true;
+                } else {
+                    EVENT_LOG_ERROR_ONLY = false;
+                }
+
             } catch (Exception ex) {
                 eventLog1.WriteEntry(ex.Message);
             }
         }
 
         public static String ToString() {
-            return String.Format("\nConfiguration Parameters \nAirportCode: {0}\nSecurity Token: {1}\nReceive Queue: {2}\nSend Queue: {3}\nLog File Path: {4}\nRestAPI Base: {5}\nEarliest Downgrade: {6}\nLatest Downgrade: {7}\nEarliest Days: {8}\nLatest Days: {9}\nConsole Logging: {10}\nEvent Logging: {11}\n",
+            return String.Format("\nConfiguration Parameters \nAirportCode: {0}\nSecurity Token: {1}\nReceive Queue: {2}\nSend Queue: {3}\nLog File Path: {4}\nRestAPI Base: {5}\nEarliest Downgrade: {6}\nLatest Downgrade: {7}\nEarliest Days: {8}\nLatest Days: {9}\nConsole Logging: {10}\nEvent Logging: {11}\nPeriodic Reset Time(min): {12}\n",
                         Parameters.APT_CODE,
                         Parameters.TOKEN,
                         Parameters.RECVQ,
@@ -75,7 +84,9 @@ namespace AMSResourceStatusWidget {
                         Parameters.EARLIEST_DOWNGRADE_DAYS,
                         Parameters.LATEST_DOWNGRADE_DAYS,
                         Parameters.cl,
-                        Parameters.le);
+                        Parameters.le,
+                        Parameters.BIG_RESET_TIME
+                        );
         }
     }
 }

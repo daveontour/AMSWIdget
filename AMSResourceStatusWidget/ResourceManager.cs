@@ -331,6 +331,7 @@ namespace AMSResourceStatusWidget {
 
         public void UpdateDowngrades(bool reset=false) {
 
+            Controller.SOP("Updating downgrades for type " + this.resourceType);
 
             try {
 
@@ -359,6 +360,8 @@ namespace AMSResourceStatusWidget {
                         break;
                 }
                 client.Close();
+
+                Controller.SOP(this.ToString());
 
             } catch (Exception ex) {
                 Controller.SOP(ex.Message, true);

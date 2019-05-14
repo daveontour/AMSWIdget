@@ -68,16 +68,23 @@ namespace AMSResourceStatusWidget {
                     // Set a time to reset everything periodically
                     this.resetTimer = new Timer {
                         AutoReset = true,
-                        Interval = 1000 * 60 * Parameters.BIG_RESET_TIME,  //87 Minutes
+                        Interval = 60000 * Parameters.BIG_RESET_TIME,  
                         Enabled = true
                     };
 
                     this.resetTimer.Elapsed += (source, eventArgs) =>
                     {
+                        SOP("*****************************************************");
+                        SOP("*****  Resetting all Resource Manager Downgrades  ***");
+                        SOP("*****************************************************\n");
                         foreach (String type in types) {
                             ResourceManager rm = (ResourceManager)resourceManagersTable[type];
                             rm.UpdateDowngrades(true);
                         }
+                        SOP("***************************************************************");
+                        SOP("*****  Resetting all Resource Manager Downgrades - Complete ***");
+                        SOP("***************************************************************\n");
+
                     };
                 } catch (Exception ex) {
                     Controller.SOP("Error in function InitCommon", true);
@@ -183,7 +190,7 @@ namespace AMSResourceStatusWidget {
                             continue;
                         } else {
                             SOP(String.Format("Resetting type {0} at {1}", res, DateTime.Now));
-                            this.GetDownGradesForType(res);
+                            this.UpdateDownGradesForType(res);
                         }
                     }
                 }
@@ -213,7 +220,7 @@ namespace AMSResourceStatusWidget {
             return MessType.NonResource;
         }
 
-        private void GetDownGradesForType(MessType type) {
+        private void UpdateDownGradesForType(MessType type) {
 
             ResourceManager rm;
 
@@ -258,30 +265,41 @@ namespace AMSResourceStatusWidget {
         }
         public static void SOP(string str, bool error = false) {
 
-            //if (Parameters.CONSOLE_LOG) {
+            //File specified in the app config file
+            try {
+                if (Parameters.CONSOLE_LOG) {
 
-            //    string path = Parameters.LOGFILEPATH + @"\AMSStatusWidgetService.log";
-            //    if (!File.Exists(path)) {
-            //        // Create a file to write to.
-            //        using (StreamWriter sw = File.CreateText(path)) {
-            //            sw.WriteLine("Start of Log ");
-            //        }
-            //    }
+                    string path = Parameters.LOGFILEPATH;
+                    if (!File.Exists(path)) {
+                        // Create a file to write to.
+                        using (StreamWriter sw = File.CreateText(path)) {
+                            sw.WriteLine("Start of Log ");
+                        }
+                    }
 
-            //    using (StreamWriter sw = File.AppendText(path)) {
-            //        sw.WriteLine(str);
-            //    }
-            //}
+                    using (StreamWriter sw = File.AppendText(path)) {
+                        sw.WriteLine(str);
+                    }
+                }
+            } catch (Exception ex) {
+                if (Parameters.LOGEVENTS) {
+                    eventLog1.WriteEntry(ex.Message, EventLogEntryType.Error);
+                }
+            }
 
+            //The console if running as a console app
             if (logToConsole) {
                 Console.WriteLine(DateTime.Now + "  " + str);
             }
 
+            // The event log
             if (Parameters.LOGEVENTS) {
                 if (error) {
                     eventLog1.WriteEntry(str, EventLogEntryType.Error);
                 } else {
-                    eventLog1.WriteEntry(str, EventLogEntryType.Information);
+                    if (!Parameters.EVENT_LOG_ERROR_ONLY) {
+                        eventLog1.WriteEntry(str, EventLogEntryType.Information);
+                    }
                 }
             }
         }
